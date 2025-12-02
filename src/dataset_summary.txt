@@ -1,0 +1,14 @@
+AERIAL OBJECT CLASSIFICATION DATASET SUMMARY
+==================================================
+Total Images: 3319
+Training Set: 2662 images
+Validation Set: 442 images
+Test Set: 215 images
+
+Detailed Breakdown:
+train_bird: 1414 images
+train_drone: 1248 images
+valid_bird: 217 images
+valid_drone: 225 images
+test_bird: 121 images
+test_drone: 94 images
