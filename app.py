@@ -8,7 +8,7 @@ from torchvision import transforms
 # PAGE CONFIG
 st.set_page_config(page_title="Perfect Aerial AI", page_icon="🛸", layout="wide")
 
-# CSS
+# CSS STYLING
 st.markdown("""
 <style>
 .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 2rem; text-align: center; border-radius: 15px; }
@@ -23,18 +23,27 @@ st.markdown("""
 class PerfectAerialCNN(nn.Module):
     def __init__(self, num_classes=2):
         super(PerfectAerialCNN, self).__init__()
+        
         self.features = nn.Sequential(
             nn.Conv2d(3, 32, kernel_size=3, padding=1), nn.BatchNorm2d(32), nn.ReLU(inplace=True),
             nn.Conv2d(32, 32, kernel_size=3, padding=1), nn.BatchNorm2d(32), nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.MaxPool2d(kernel_size=2, stride=2), nn.Dropout2d(0.25),
+            
             nn.Conv2d(32, 64, kernel_size=3, padding=1), nn.BatchNorm2d(64), nn.ReLU(inplace=True),
             nn.Conv2d(64, 64, kernel_size=3, padding=1), nn.BatchNorm2d(64), nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.MaxPool2d(kernel_size=2, stride=2), nn.Dropout2d(0.25),
+            
             nn.Conv2d(64, 128, kernel_size=3, padding=1), nn.BatchNorm2d(128), nn.ReLU(inplace=True),
+            nn.Conv2d(128, 128, kernel_size=3, padding=1), nn.BatchNorm2d(128), nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2), nn.Dropout2d(0.25),
+            
+            nn.Conv2d(128, 256, kernel_size=3, padding=1), nn.BatchNorm2d(256), nn.ReLU(inplace=True),
             nn.AdaptiveAvgPool2d((4, 4))
         )
+        
         self.classifier = nn.Sequential(
-            nn.Flatten(), nn.Linear(128 * 4 * 4, 256), nn.ReLU(inplace=True), nn.Dropout(0.5),
+            nn.Flatten(), nn.Linear(256 * 4 * 4, 512), nn.ReLU(inplace=True), nn.Dropout(0.5),
+            nn.Linear(512, 256), nn.ReLU(inplace=True), nn.Dropout(0.3),
             nn.Linear(256, num_classes)
         )
     
@@ -76,26 +85,32 @@ def main():
     
     with col1:
         st.subheader("📤 Upload Aerial Image")
-        uploaded = st.file_uploader("Choose file", type=['jpg', 'jpeg', 'png'])
-        if uploaded:
-            image = Image.open(uploaded).convert('RGB')
+        uploaded_file = st.file_uploader("Choose file", type=['jpg', 'jpeg', 'png'])
+        
+        if uploaded_file:
+            image = Image.open(uploaded_file).convert('RGB')
             st.image(image, use_column_width=True)
+            st.info(f"📊 Size: {image.size}")
     
     with col2:
         st.subheader("🎯 AI Prediction")
-        if uploaded:
+        
+        if uploaded_file:
             with st.spinner("🧠 AI analyzing..."):
-                pred_class, confidence = ai.predict(image)
+                predicted_class, confidence = ai.predict(image)
             
-            conf_percent = confidence * 100
+            confidence_percent = confidence * 100
             
-            if pred_class == "BIRD":
-                st.markdown(f'<div class="result-card bird-card"><h2>🐦 BIRD DETECTED</h2><div class="confidence">{conf_percent:.1f}%</div></div>', unsafe_allow_html=True)
+            if predicted_class == "BIRD":
+                st.markdown(f'<div class="result-card bird-card"><h2>🐦 BIRD DETECTED</h2><div class="confidence">{confidence_percent:.1f}%</div></div>', unsafe_allow_html=True)
             else:
-                st.markdown(f'<div class="result-card drone-card"><h2>🚁 DRONE DETECTED</h2><div class="confidence">{conf_percent:.1f}%</div></div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="result-card drone-card"><h2>🚁 DRONE DETECTED</h2><div class="confidence">{confidence_percent:.1f}%</div></div>', unsafe_allow_html=True)
             
-            st.metric("Confidence", f"{conf_percent:.1f}%")
+            st.metric("Confidence", f"{confidence_percent:.1f}%")
             st.balloons()
+        
+        else:
+            st.info("📸 Upload an aerial image to detect birds vs drones")
 
 if __name__ == "__main__":
     main()
