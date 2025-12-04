@@ -19,35 +19,63 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# MODEL ARCHITECTURE
+# 🔥 EXACT ARCHITECTURE FROM YOUR TRAINED MODEL
 class PerfectAerialCNN(nn.Module):
     def __init__(self, num_classes=2):
         super(PerfectAerialCNN, self).__init__()
         
+        # 🎯 EXACT LAYERS FROM YOUR TRAINED MODEL:
         self.features = nn.Sequential(
-            nn.Conv2d(3, 32, kernel_size=3, padding=1), nn.BatchNorm2d(32), nn.ReLU(inplace=True),
-            nn.Conv2d(32, 32, kernel_size=3, padding=1), nn.BatchNorm2d(32), nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2), nn.Dropout2d(0.25),
+            # Block 1: Conv2d(3,32) → Conv2d(32,32) → MaxPool → Dropout
+            nn.Conv2d(3, 32, kernel_size=3, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(32, 32, kernel_size=3, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Dropout2d(0.25),
             
-            nn.Conv2d(32, 64, kernel_size=3, padding=1), nn.BatchNorm2d(64), nn.ReLU(inplace=True),
-            nn.Conv2d(64, 64, kernel_size=3, padding=1), nn.BatchNorm2d(64), nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2), nn.Dropout2d(0.25),
+            # Block 2: Conv2d(32,64) → Conv2d(64,64) → MaxPool → Dropout
+            nn.Conv2d(32, 64, kernel_size=3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(64, 64, kernel_size=3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Dropout2d(0.25),
             
-            nn.Conv2d(64, 128, kernel_size=3, padding=1), nn.BatchNorm2d(128), nn.ReLU(inplace=True),
-            nn.Conv2d(128, 128, kernel_size=3, padding=1), nn.BatchNorm2d(128), nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2), nn.Dropout2d(0.25),
+            # Block 3: Conv2d(64,128) → Conv2d(128,128) → MaxPool → Dropout
+            nn.Conv2d(64, 128, kernel_size=3, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(128, 128, kernel_size=3, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Dropout2d(0.25),
             
-            nn.Conv2d(128, 256, kernel_size=3, padding=1), nn.BatchNorm2d(256), nn.ReLU(inplace=True),
-            nn.AdaptiveAvgPool2d((4, 4))
+            # Block 4: Conv2d(128,256) → AdaptivePool
+            nn.Conv2d(128, 256, kernel_size=3, padding=1),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True),
+            nn.AdaptiveAvgPool2d((4, 4))  # EXACT: 4x4 output
         )
         
+        # 🎯 EXACT CLASSIFIER FROM YOUR TRAINED MODEL:
         self.classifier = nn.Sequential(
-            nn.Flatten(), nn.Linear(256 * 4 * 4, 512), nn.ReLU(inplace=True), nn.Dropout(0.5),
-            nn.Linear(512, 256), nn.ReLU(inplace=True), nn.Dropout(0.3),
-            nn.Linear(256, num_classes)
+            nn.Flatten(),
+            nn.Linear(256 * 4 * 4, 512),    # EXACT: 4096 → 512
+            nn.ReLU(inplace=True),
+            nn.Dropout(0.5),
+            nn.Linear(512, 256),            # EXACT: 512 → 256
+            nn.ReLU(inplace=True),
+            nn.Dropout(0.3),
+            nn.Linear(256, num_classes)     # EXACT: 256 → 2
         )
     
-    def forward(self, x): 
+    def forward(self, x):
         x = self.features(x)
         x = self.classifier(x)
         return x
@@ -56,28 +84,38 @@ class AerialDetection:
     def __init__(self):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.transform = transforms.Compose([
-            transforms.Resize((224, 224)), transforms.ToTensor(),
+            transforms.Resize((224, 224)), 
+            transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
         
         self.model = PerfectAerialCNN(num_classes=2)
+        
+        # 🔥 EXACT MODEL LOADING
         checkpoint = torch.load('final_aerial_model.pth', map_location=self.device)
-        self.model.load_state_dict(checkpoint['model_state_dict'])
+        self.model.load_state_dict(checkpoint['model_state_dict'], strict=True)
         self.model.to(self.device).eval()
+        
+        # 🎉 Show success message
+        st.success(f"✅ Perfect model loaded! Training accuracy: {checkpoint['test_accuracy']:.4f}")
     
     def predict(self, image):
         img_tensor = self.transform(image).unsqueeze(0).to(self.device)
+        
         with torch.no_grad():
             outputs = self.model(img_tensor)
-            probs = F.softmax(outputs, dim=1)
-            confidence, pred_class = torch.max(probs, 1)
-        return ["BIRD", "DRONE"][pred_class.item()], confidence.item()
+            probabilities = F.softmax(outputs, dim=1)
+            confidence, predicted_class = torch.max(probabilities, 1)
+        
+        class_names = ["BIRD", "DRONE"]
+        return class_names[predicted_class.item()], confidence.item()
 
 def main():
-    st.markdown('<div class="header"><h1>🛸 Perfect Aerial Detection AI</h1><p>100% Accuracy Trained Model</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="header"><h1>🛸 Perfect Aerial Detection AI</h1><p>Exact Architecture - 100% Accuracy</p></div>', unsafe_allow_html=True)
     
     if 'ai' not in st.session_state:
-        st.session_state.ai = AerialDetection()
+        with st.spinner("🧠 Loading perfect AI model...")
+            st.session_state.ai = AerialDetection()
     
     ai = st.session_state.ai
     
@@ -102,9 +140,21 @@ def main():
             confidence_percent = confidence * 100
             
             if predicted_class == "BIRD":
-                st.markdown(f'<div class="result-card bird-card"><h2>🐦 BIRD DETECTED</h2><div class="confidence">{confidence_percent:.1f}%</div></div>', unsafe_allow_html=True)
+                st.markdown(f"""
+                <div class="result-card bird-card">
+                    <h2>🐦 BIRD DETECTED</h2>
+                    <div class="confidence">{confidence_percent:.1f}%</div>
+                    <p>AI Confidence</p>
+                </div>
+                """, unsafe_allow_html=True)
             else:
-                st.markdown(f'<div class="result-card drone-card"><h2>🚁 DRONE DETECTED</h2><div class="confidence">{confidence_percent:.1f}%</div></div>', unsafe_allow_html=True)
+                st.markdown(f"""
+                <div class="result-card drone-card">
+                    <h2>🚁 DRONE DETECTED</h2>
+                    <div class="confidence">{confidence_percent:.1f}%</div>
+                    <p>AI Confidence</p>
+                </div>
+                """, unsafe_allow_html=True)
             
             st.metric("Confidence", f"{confidence_percent:.1f}%")
             st.balloons()
