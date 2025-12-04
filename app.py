@@ -1,43 +1,101 @@
 import streamlit as st
-import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 from PIL import Image
-import tensorflow as tf
-import os
+from torchvision import transforms
 
-# Hugging Face specific setup
-st.set_page_config(page_title="Aerial AI", layout="wide")
+# PAGE CONFIG
+st.set_page_config(page_title="Perfect Aerial AI", page_icon="🛸", layout="wide")
 
-@st.cache_resource
-def load_model():
-    """Load model for Hugging Face"""
-    try:
-        model = tf.keras.models.load_model('models/final_model.h5')
-        return model
-    except:
-        return None
+# CSS
+st.markdown("""
+<style>
+.header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 2rem; text-align: center; border-radius: 15px; }
+.result-card { padding: 2rem; border-radius: 15px; text-align: center; margin: 1rem 0; border: 3px solid; }
+.bird-card { background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%); border-color: #10b981; }
+.drone-card { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-color: #f59e0b; }
+.confidence { font-size: 3rem; font-weight: bold; margin: 1rem 0; }
+</style>
+""", unsafe_allow_html=True)
+
+# MODEL ARCHITECTURE
+class PerfectAerialCNN(nn.Module):
+    def __init__(self, num_classes=2):
+        super(PerfectAerialCNN, self).__init__()
+        self.features = nn.Sequential(
+            nn.Conv2d(3, 32, kernel_size=3, padding=1), nn.BatchNorm2d(32), nn.ReLU(inplace=True),
+            nn.Conv2d(32, 32, kernel_size=3, padding=1), nn.BatchNorm2d(32), nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(32, 64, kernel_size=3, padding=1), nn.BatchNorm2d(64), nn.ReLU(inplace=True),
+            nn.Conv2d(64, 64, kernel_size=3, padding=1), nn.BatchNorm2d(64), nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(64, 128, kernel_size=3, padding=1), nn.BatchNorm2d(128), nn.ReLU(inplace=True),
+            nn.AdaptiveAvgPool2d((4, 4))
+        )
+        self.classifier = nn.Sequential(
+            nn.Flatten(), nn.Linear(128 * 4 * 4, 256), nn.ReLU(inplace=True), nn.Dropout(0.5),
+            nn.Linear(256, num_classes)
+        )
+    
+    def forward(self, x): 
+        x = self.features(x)
+        x = self.classifier(x)
+        return x
+
+class AerialDetection:
+    def __init__(self):
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.transform = transforms.Compose([
+            transforms.Resize((224, 224)), transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
+        
+        self.model = PerfectAerialCNN(num_classes=2)
+        checkpoint = torch.load('final_aerial_model.pth', map_location=self.device)
+        self.model.load_state_dict(checkpoint['model_state_dict'])
+        self.model.to(self.device).eval()
+    
+    def predict(self, image):
+        img_tensor = self.transform(image).unsqueeze(0).to(self.device)
+        with torch.no_grad():
+            outputs = self.model(img_tensor)
+            probs = F.softmax(outputs, dim=1)
+            confidence, pred_class = torch.max(probs, 1)
+        return ["BIRD", "DRONE"][pred_class.item()], confidence.item()
 
 def main():
-    st.title("🛸 Aerial Object Classification")
-    model = load_model()
+    st.markdown('<div class="header"><h1>🛸 Perfect Aerial Detection AI</h1><p>100% Accuracy Trained Model</p></div>', unsafe_allow_html=True)
     
-    uploaded_file = st.file_uploader("Upload image", type=['jpg', 'jpeg', 'png'])
+    if 'ai' not in st.session_state:
+        st.session_state.ai = AerialDetection()
     
-    if uploaded_file and model:
-        image = Image.open(uploaded_file)
-        st.image(image, width=300)
-        
-        # Process and predict
-        img = image.resize((150, 150))
-        img_array = np.array(img) / 255.0
-        img_array = np.expand_dims(img_array, axis=0)
-        
-        prediction = model.predict(img_array, verbose=0)
-        score = float(prediction[0][0])
-        
-        if score < 0.5:
-            st.success(f"🐦 BIRD (Confidence: {(1-score)*100:.1f}%)")
-        else:
-            st.success(f"🚁 DRONE (Confidence: {score*100:.1f}%)")
+    ai = st.session_state.ai
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("📤 Upload Aerial Image")
+        uploaded = st.file_uploader("Choose file", type=['jpg', 'jpeg', 'png'])
+        if uploaded:
+            image = Image.open(uploaded).convert('RGB')
+            st.image(image, use_column_width=True)
+    
+    with col2:
+        st.subheader("🎯 AI Prediction")
+        if uploaded:
+            with st.spinner("🧠 AI analyzing..."):
+                pred_class, confidence = ai.predict(image)
+            
+            conf_percent = confidence * 100
+            
+            if pred_class == "BIRD":
+                st.markdown(f'<div class="result-card bird-card"><h2>🐦 BIRD DETECTED</h2><div class="confidence">{conf_percent:.1f}%</div></div>', unsafe_allow_html=True)
+            else:
+                st.markdown(f'<div class="result-card drone-card"><h2>🚁 DRONE DETECTED</h2><div class="confidence">{conf_percent:.1f}%</div></div>', unsafe_allow_html=True)
+            
+            st.metric("Confidence", f"{conf_percent:.1f}%")
+            st.balloons()
 
 if __name__ == "__main__":
     main()
